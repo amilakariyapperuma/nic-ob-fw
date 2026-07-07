@@ -33,12 +33,24 @@
 #define BMC_I2C_SLAVE_ADDR  0x20
 
 /*--------------------------------------------------------------------------
+ * Typed queue creation macro.
+ * Locks item_size to sizeof(type) at the creation site — ensures the
+ * queue's internal buffer matches the concrete struct used by senders
+ * and receivers. Eliminates the risk of size mismatch between creation
+ * and use.
+ *
+ * Usage: QUEUE_CREATE_TYPED(depth, bmc_rx_msg_t)
+ *------------------------------------------------------------------------*/
+#define QUEUE_CREATE_TYPED(depth, type) \
+    rtos_queue_create((depth), sizeof(type))
+
+/*--------------------------------------------------------------------------
  * System queues — created here, shared across modules via init params
  *------------------------------------------------------------------------*/
-static rtos_queue_handle_t s_bmc_rx_queue     = NULL;
-static rtos_queue_handle_t s_nic_event_queue  = NULL;
+static rtos_queue_handle_t s_bmc_rx_queue       = NULL;
+static rtos_queue_handle_t s_nic_event_queue    = NULL;
 static rtos_queue_handle_t s_sensor_alert_queue = NULL;
-static rtos_queue_handle_t s_flash_cmd_queue  = NULL;
+static rtos_queue_handle_t s_flash_cmd_queue    = NULL;
 
 /*--------------------------------------------------------------------------
  * Task handles
@@ -52,20 +64,16 @@ static rtos_task_handle_t s_flash_mgr_task  = NULL;
  *------------------------------------------------------------------------*/
 static rtos_err_t init_queues(void)
 {
-    s_bmc_rx_queue = rtos_queue_create(QUEUE_DEPTH_BMC,
-                                       sizeof(bmc_rx_msg_t));
+    s_bmc_rx_queue = QUEUE_CREATE_TYPED(QUEUE_DEPTH_BMC, bmc_rx_msg_t);
     if (s_bmc_rx_queue == NULL) { return RTOS_ERR_NOMEM; }
 
-    s_nic_event_queue = rtos_queue_create(QUEUE_DEPTH_NIC_GEN,
-                                          sizeof(nic_event_msg_t));
+    s_nic_event_queue = QUEUE_CREATE_TYPED(QUEUE_DEPTH_NIC_GEN, nic_event_msg_t);
     if (s_nic_event_queue == NULL) { return RTOS_ERR_NOMEM; }
 
-    s_sensor_alert_queue = rtos_queue_create(QUEUE_DEPTH_SENSOR,
-                                             sizeof(nic_event_msg_t));
+    s_sensor_alert_queue = QUEUE_CREATE_TYPED(QUEUE_DEPTH_SENSOR, nic_event_msg_t);
     if (s_sensor_alert_queue == NULL) { return RTOS_ERR_NOMEM; }
 
-    s_flash_cmd_queue = rtos_queue_create(QUEUE_DEPTH_FLASH,
-                                          sizeof(flash_cmd_t));
+    s_flash_cmd_queue = QUEUE_CREATE_TYPED(QUEUE_DEPTH_FLASH, flash_cmd_t);
     if (s_flash_cmd_queue == NULL) { return RTOS_ERR_NOMEM; }
 
     return RTOS_OK;

@@ -16,6 +16,15 @@ static rtos_timer_handle_t s_poll_timer    = NULL;
 static volatile bool       s_poll_trigger  = false;
 
 /*--------------------------------------------------------------------------
+ * Typed queue wrapper — private to this module.
+ *------------------------------------------------------------------------*/
+static inline rtos_err_t sensor_alert_queue_receive(nic_event_msg_t *alert,
+                                                    uint32_t         timeout_ms)
+{
+    return rtos_queue_receive(s_alert_queue, alert, timeout_ms);
+}
+
+/*--------------------------------------------------------------------------
  * Sensor calibration — private to this module
  *------------------------------------------------------------------------*/
 typedef struct ALIGNED4 {
@@ -164,8 +173,8 @@ void sensor_mgr_task(void *arg)
 
         /* Check for hardware threshold alerts */
         nic_event_msg_t alert;
-        if (rtos_queue_receive(s_alert_queue, &alert,
-                               SENSOR_POLL_INTERVAL_MS / 2) == RTOS_OK) {
+        if (sensor_alert_queue_receive(&alert,
+                                       SENSOR_POLL_INTERVAL_MS / 2) == RTOS_OK) {
             /* TODO: handle threshold alert — log SEL, notify BMC */
         }
     }

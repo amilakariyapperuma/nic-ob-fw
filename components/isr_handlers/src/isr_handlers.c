@@ -12,9 +12,25 @@
 /*--------------------------------------------------------------------------
  * Module-private state — queues set during init
  *------------------------------------------------------------------------*/
-static rtos_queue_handle_t s_bmc_rx_queue      = NULL;
-static rtos_queue_handle_t s_nic_event_queue   = NULL;
+static rtos_queue_handle_t s_bmc_rx_queue       = NULL;
+static rtos_queue_handle_t s_nic_event_queue    = NULL;
 static rtos_queue_handle_t s_sensor_alert_queue = NULL;
+
+/*--------------------------------------------------------------------------
+ * Typed ISR queue wrappers — private to this module.
+ * ISR variants: non-blocking, no mutex, safe in interrupt context.
+ *------------------------------------------------------------------------*/
+static inline rtos_err_t IRAM_ATTR
+bmc_rx_queue_send_from_isr(const bmc_rx_msg_t *msg, bool *woken)
+{
+    return rtos_queue_send_from_isr(s_bmc_rx_queue, msg, woken);
+}
+
+static inline rtos_err_t IRAM_ATTR
+nic_event_queue_send_from_isr(const nic_event_msg_t *evt, bool *woken)
+{
+    return rtos_queue_send_from_isr(s_nic_event_queue, evt, woken);
+}
 
 /*--------------------------------------------------------------------------
  * ISR callbacks — registered with HAL drivers
@@ -44,7 +60,7 @@ static void IRAM_ATTR bmc_i2c_rx_isr(const uint8_t *data, uint16_t length)
     }
 
     bool higher_prio_woken = false;
-    rtos_queue_send_from_isr(s_bmc_rx_queue, &msg, &higher_prio_woken);
+    bmc_rx_queue_send_from_isr(&msg, &higher_prio_woken);
     rtos_yield_from_isr(higher_prio_woken);
 }
 
@@ -61,7 +77,7 @@ static void IRAM_ATTR nic_alert_isr(void *arg)
     };
 
     bool higher_prio_woken = false;
-    rtos_queue_send_from_isr(s_nic_event_queue, &evt, &higher_prio_woken);
+    nic_event_queue_send_from_isr(&evt, &higher_prio_woken);
     rtos_yield_from_isr(higher_prio_woken);
 }
 

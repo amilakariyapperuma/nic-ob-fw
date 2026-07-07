@@ -25,6 +25,29 @@ static rtos_queue_handle_t       s_flash_cmd_queue = NULL;
 static rtos_event_group_handle_t s_events          = NULL;
 
 /*--------------------------------------------------------------------------
+ * Typed queue wrappers — private to this module.
+ * Compiler enforces correct struct type at every call site.
+ * Zero overhead — inlined by compiler.
+ *------------------------------------------------------------------------*/
+static inline rtos_err_t bmc_rx_queue_receive(bmc_rx_msg_t *msg,
+                                              uint32_t      timeout_ms)
+{
+    return rtos_queue_receive(s_bmc_rx_queue, msg, timeout_ms);
+}
+
+static inline rtos_err_t nic_event_queue_receive(nic_event_msg_t *evt,
+                                                 uint32_t         timeout_ms)
+{
+    return rtos_queue_receive(s_nic_event_queue, evt, timeout_ms);
+}
+
+static inline rtos_err_t flash_cmd_queue_send(const flash_cmd_t *cmd,
+                                              uint32_t           timeout_ms)
+{
+    return rtos_queue_send(s_flash_cmd_queue, cmd, timeout_ms);
+}
+
+/*--------------------------------------------------------------------------
  * Liveness — subcomponent within BMC Mgr
  *------------------------------------------------------------------------*/
 static uint32_t s_last_bmc_seen_ms   = 0;
@@ -90,8 +113,7 @@ static void dispatch_pldm(const pldm_msg_t *msg)
                 memcpy(&cmd.image_size,   &msg->payload[4], 4);
             }
 
-            if (rtos_queue_send(s_flash_cmd_queue, &cmd,
-                                RTOS_NO_WAIT) != RTOS_OK) {
+            if (flash_cmd_queue_send(&cmd, RTOS_NO_WAIT) != RTOS_OK) {
                 cc = PLDM_CC_ERROR;   /* queue full — update in progress */
             }
             break;
@@ -163,8 +185,7 @@ void bmc_mgr_task(void *arg)
             1000);    /* 1s timeout for liveness check */
 
         /* Always drain BMC queue first — higher priority within thread */
-        while (rtos_queue_receive(s_bmc_rx_queue, &bmc_msg,
-                                  RTOS_NO_WAIT) == RTOS_OK) {
+        while (bmc_rx_queue_receive(&bmc_msg, RTOS_NO_WAIT) == RTOS_OK) {
             liveness_update();
 
             pldm_msg_t pldm;
@@ -175,8 +196,7 @@ void bmc_mgr_task(void *arg)
         }
 
         /* Then drain NIC event queue */
-        while (rtos_queue_receive(s_nic_event_queue, &nic_evt,
-                                  RTOS_NO_WAIT) == RTOS_OK) {
+        while (nic_event_queue_receive(&nic_evt, RTOS_NO_WAIT) == RTOS_OK) {
             handle_nic_event(&nic_evt);
         }
 

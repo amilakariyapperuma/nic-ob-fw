@@ -13,6 +13,15 @@ static rtos_queue_handle_t s_cmd_queue   = NULL;
 static bool                s_update_active = false;
 
 /*--------------------------------------------------------------------------
+ * Typed queue wrapper — private to this module.
+ *------------------------------------------------------------------------*/
+static inline rtos_err_t flash_cmd_queue_receive(flash_cmd_t *cmd,
+                                                 uint32_t     timeout_ms)
+{
+    return rtos_queue_receive(s_cmd_queue, cmd, timeout_ms);
+}
+
+/*--------------------------------------------------------------------------
  * Module-private flash update state machine
  *------------------------------------------------------------------------*/
 typedef enum {
@@ -123,8 +132,7 @@ void nic_flash_mgr_task(void *arg)
 
     while (1) {
         /* Block until BMC Mgr dispatches a command */
-        if (rtos_queue_receive(s_cmd_queue, &cmd,
-                               RTOS_WAIT_FOREVER) != RTOS_OK) {
+        if (flash_cmd_queue_receive(&cmd, RTOS_WAIT_FOREVER) != RTOS_OK) {
             continue;
         }
 
